@@ -32,7 +32,8 @@ class IgSeqNode:
         return reduce(and_, [self.N==other.N, self.nc==other.nc, 
                              self.score==other.score, 
                              self.maxScore==other.maxScore,
-                             self.maxScoreIdx==other.maxScoreIdx])
+                             self.maxScoreIdx==other.maxScoreIdx,
+                             self.vlen==other.vlen, self.nr==other.nr])
                             
     def __ne__(self, other):
         return (not self.__eq__(other))
@@ -93,7 +94,7 @@ class IgSeqNode:
             logprob += self.nr*np.log(prand)
         return logprob
         
-def condenseIgSeqNodes(igSeqNodes):
+def condenseIgSeqNodes(igSeqNodes, p=None, probtol=None):
     idx = 0
     while idx < len(igSeqNodes):
         idx2 = idx+1
@@ -103,6 +104,10 @@ def condenseIgSeqNodes(igSeqNodes):
                 del igSeqNodes[idx2]
             idx2 += 1
         idx += 1
+    if probtol != None and p != None:
+        logprobtol = np.log(probtol)
+        igSeqNodes = filter(lambda node: node.calculatelogprob(p)>logprobtol,
+                            igSeqNodes)
     return igSeqNodes
     
 def analyzeIgSeqNodes(igSeqNodes, p):
@@ -114,11 +119,11 @@ def analyzeIgSeqNodes(igSeqNodes, p):
             stat[node.maxScoreIdx] = node.deg*np.exp(node.calculatelogprob(p))
     return stat
     
-def simulateIgSeq(seqlen, vlen):
+def simulateIgSeq(seqlen, vlen, p=None, probtol=None):
     nodes = [IgSeqNode(0, 0, vlen=vlen)]
     for N in range(seqlen):
         nextnodes = []
         for node in nodes:
             nextnodes += node.generateNextNodes()
-        nodes = condenseIgSeqNodes(nextnodes)
+        nodes = condenseIgSeqNodes(nextnodes, p, probtol=probtol)
     return nodes
