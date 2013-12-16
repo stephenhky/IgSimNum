@@ -7,6 +7,7 @@ Created on Thu Dec 12 13:05:50 2013
 
 import numpy as np
 from operator import and_
+import time
 
 prand = 0.25
 qrand = 1 - prand
@@ -94,7 +95,7 @@ class IgSeqNode:
             logprob += self.nr*np.log(prand)
         return logprob
         
-def condenseIgSeqNodes(igSeqNodes, p=None, probtol=None):
+def condenseIgSeqNodes(igSeqNodes, p=None, probtol=None, seqlen=None):
     idx = 0
     while idx < len(igSeqNodes):
         idx2 = idx+1
@@ -104,6 +105,9 @@ def condenseIgSeqNodes(igSeqNodes, p=None, probtol=None):
                 del igSeqNodes[idx2]
             idx2 += 1
         idx += 1
+    if seqlen != None:
+        igSeqNodes = filter(lambda node: node.score >= (seqlen-node.N)*node.mismatchScore,
+                            igSeqNodes)
     if probtol != None and p != None:
         logprobtol = np.log(probtol)
         igSeqNodes = filter(lambda node: node.calculatelogprob(p)>logprobtol,
@@ -125,5 +129,17 @@ def simulateIgSeq(seqlen, vlen, p=None, probtol=None):
         nextnodes = []
         for node in nodes:
             nextnodes += node.generateNextNodes()
-        nodes = condenseIgSeqNodes(nextnodes, p, probtol=probtol)
+        nodes = condenseIgSeqNodes(nextnodes, p=p, probtol=probtol, 
+                                   seqlen=seqlen)
     return nodes
+    
+if __name__ == '__main__':
+    time1 = time.time()
+    nodes = simulateIgSeq(80, 65, p=0.05, probtol=1e-20)
+    stat = analyzeIgSeqNodes(nodes, 0.05)
+    time2 = time.time()
+    print 'Time = ', (time2-time1), ' sec'
+    for maxIdx in stat:
+        print maxIdx, ':', stat[maxIdx]
+    print 'Norm = ', sum(stat.values())
+    print '# nodes = ', len(nodes)
