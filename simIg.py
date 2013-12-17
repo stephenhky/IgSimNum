@@ -6,8 +6,9 @@ Created on Thu Dec 12 13:05:50 2013
 """
 
 import numpy as np
-from operator import and_
+from operator import and_, add
 import time
+from multiprocessing import Pool
 
 prand = 0.25
 qrand = 1 - prand
@@ -40,7 +41,10 @@ class IgSeqNode:
         return (not self.__eq__(other))
         
     def __str__(self):
-        return 'N='+str(self.N)+', nc='+str(self.nc)+', vlen='+str(self.vlen)+', nr='+str(self.nr)+', score='+str(self.score)+', maxScore='+str(self.maxScore)+', maxScoreIdx='+str(self.maxScoreIdx)+', deg='+str(self.deg)
+        return '(N='+str(self.N)+', nc='+str(self.nc)+', vlen='+str(self.vlen)+', nr='+str(self.nr)+', score='+str(self.score)+', maxScore='+str(self.maxScore)+', maxScoreIdx='+str(self.maxScoreIdx)+', deg='+str(self.deg)+')'
+        
+    def __repr__(self):
+        return self.__str__()        
         
     def __hash__(self):
         return self.maxScoreIdx+self.maxScore*1000+self.score*1000000+self.nc*100000000
@@ -123,19 +127,34 @@ def analyzeIgSeqNodes(igSeqNodes, p):
             stat[node.maxScoreIdx] = node.deg*np.exp(node.calculatelogprob(p))
     return stat
     
+def generateNextNodes(nodes):
+    nextnodes = []
+    for node in nodes:
+        nextnodes += node.generateNextNodes()
+    return nextnodes
+    
 def simulateIgSeq(seqlen, vlen, p=None, probtol=None):
     nodes = [IgSeqNode(0, 0, vlen=vlen)]
     for N in range(seqlen):
-        nextnodes = []
-        for node in nodes:
-            nextnodes += node.generateNextNodes()
-        nodes = condenseIgSeqNodes(nextnodes, p=p, probtol=probtol, 
-                                   seqlen=seqlen)
+        nodes = generateNextNodes(nodes, p, probtol, seqlen)
+    nodes = condenseIgSeqNodes(nodes, p=p, probtol=probtol, seqlen=seqlen)
+    return nodes
+    
+def simulateIgSeqPool(seqlen, vlen, p=None, probtol=None, numpools=1):
+    nodes = [IgSeqNode(0, 0, vlen=vlen)]
+    for N in range(seqlen):
+        nump = min(numpools, len(nodes))
+        numPerPool = int(np.ceil(len(nodes)/nump))
+        nodepartition = [nodes[numPerPool*i:min(numPerPool*(i+1), len(nodes))] for i in range(nump)]
+        pool = Pool(nump)
+        nodes_array = pool.map(generateNextNodes, nodepartition)
+        nodes = condenseIgSeqNodes(reduce(add, nodes_array), p=p, 
+                                   probtol=probtol, seqlen=seqlen)
     return nodes
     
 if __name__ == '__main__':
     time1 = time.time()
-    nodes = simulateIgSeq(80, 65, p=0.05, probtol=1e-20)
+    nodes = simulateIgSeqPool(100, 85, p=0.05, probtol=1e-20, numpools=5)
     stat = analyzeIgSeqNodes(nodes, 0.05)
     time2 = time.time()
     print 'Time = ', (time2-time1), ' sec'
