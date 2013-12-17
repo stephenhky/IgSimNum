@@ -155,11 +155,11 @@ def simulateIgSeqPool(seqlen, vlen, p=None, probtol=None, numpools=1):
     
 if __name__ == '__main__':
     time1 = time.time()
-    nodes = simulateIgSeqPool(100, 85, p=0.05, probtol=1e-20, numpools=2)
+    nodes = simulateIgSeqPool(320, 300, p=0.05, probtol=1e-40, numpools=5)
     stat = analyzeIgSeqNodes(nodes, 0.05)
     time2 = time.time()
     print 'Time = ', (time2-time1), ' sec'
-    for maxIdx in stat:
+    for maxIdx in sorted(stat.keys()):
         print maxIdx, ':', stat[maxIdx]
     print 'Norm = ', sum(stat.values())
     print '# nodes = ', len(nodes)
