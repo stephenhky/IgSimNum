@@ -144,8 +144,9 @@ def simulateIgSeqPool(seqlen, vlen, p=None, probtol=None, numpools=1):
     nodes = [IgSeqNode(0, 0, vlen=vlen)]
     for N in range(seqlen):
         nump = min(numpools, len(nodes))
-        numPerPool = int(np.ceil(len(nodes)/nump))
+        numPerPool = int(np.ceil(len(nodes)/float(nump)))
         nodepartition = [nodes[numPerPool*i:min(numPerPool*(i+1), len(nodes))] for i in range(nump)]
+        print N, len(nodes), nump, numPerPool, map(len, nodepartition)
         pool = Pool(nump)
         nodes_array = pool.map(generateNextNodes, nodepartition)
         nodes = condenseIgSeqNodes(reduce(add, nodes_array), p=p, 
@@ -154,7 +155,7 @@ def simulateIgSeqPool(seqlen, vlen, p=None, probtol=None, numpools=1):
     
 if __name__ == '__main__':
     time1 = time.time()
-    nodes = simulateIgSeqPool(100, 85, p=0.05, probtol=1e-20, numpools=5)
+    nodes = simulateIgSeqPool(100, 85, p=0.05, probtol=1e-20, numpools=2)
     stat = analyzeIgSeqNodes(nodes, 0.05)
     time2 = time.time()
     print 'Time = ', (time2-time1), ' sec'
