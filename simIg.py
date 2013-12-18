@@ -98,7 +98,8 @@ class IgSeqNode:
             logprob += (self.N-self.vlen-self.nr)*np.log(qrand)
             logprob += self.nr*np.log(prand)
         return logprob
-     
+        
+# This function is not only slow but does not condense everything
 def condenseDegenerateIgSeqNodes(igSeqNodes):
     idx = 0
     while idx < len(igSeqNodes):
@@ -127,7 +128,7 @@ def condenseDegenerateIgSeqNodesHash(nodes):
     return reduce(add, nodehash.values())
      
 def condenseIgSeqNodes(igSeqNodes, p=None, probtol=None, seqlen=None):
-    igSeqNodes = condenseDegenerateIgSeqNodes(igSeqNodes)
+    igSeqNodes = condenseDegenerateIgSeqNodesHash(igSeqNodes)
     if seqlen != None:
         igSeqNodes = filter(lambda node: node.score >= (seqlen-node.N+1)*node.mismatchScore,
                             igSeqNodes)
@@ -174,8 +175,8 @@ def simulateIgSeqPool(seqlen, vlen, p=None, probtol=None, numpools=1):
     
 if __name__ == '__main__':
     time1 = time.time()
-    #nodes = simulateIgSeqPool(320, 300, p=0.05, probtol=1e-40, numpools=5)
-    nodes = simulateIgSeq(15, 10)
+    nodes = simulateIgSeqPool(320, 300, p=0.05, probtol=1e-40, numpools=5)
+    #nodes = simulateIgSeq(10, 9)
     stat = analyzeIgSeqNodes(nodes, 0.05)
     time2 = time.time()
     print 'Time = ', (time2-time1), ' sec'
@@ -183,3 +184,7 @@ if __name__ == '__main__':
         print maxIdx, ':', stat[maxIdx]
     print 'Norm = ', sum(stat.values())
     print '# nodes = ', len(nodes)
+    '''    
+    for node in nodes:
+        print node
+    '''
