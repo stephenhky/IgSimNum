@@ -47,7 +47,7 @@ class IgSeqNode:
         return self.__str__()        
         
     def __hash__(self):
-        return self.maxScoreIdx+self.maxScore*1000+self.score*1000000+self.nc*100000000
+        return self.maxScoreIdx+self.maxScore*1000+self.score*1000000+self.nc*100000000+self.nr*1000000000
        
     def generateNextNodes(self):
         # correct node
@@ -98,8 +98,8 @@ class IgSeqNode:
             logprob += (self.N-self.vlen-self.nr)*np.log(qrand)
             logprob += self.nr*np.log(prand)
         return logprob
-        
-def condenseIgSeqNodes(igSeqNodes, p=None, probtol=None, seqlen=None):
+     
+def condenseDegenerateIgSeqNodes(igSeqNodes):
     idx = 0
     while idx < len(igSeqNodes):
         idx2 = idx+1
@@ -109,8 +109,27 @@ def condenseIgSeqNodes(igSeqNodes, p=None, probtol=None, seqlen=None):
                 del igSeqNodes[idx2]
             idx2 += 1
         idx += 1
+    return igSeqNodes
+     
+def condenseDegenerateIgSeqNodesHash(nodes):
+    nodehash = {}
+    for node in nodes:
+        hashcode = node.__hash__()
+        if nodehash.has_key(hashcode):
+            nodehash[hashcode].append(node)
+        else:
+            nodehash[hashcode] = [node]
+    for nodelist in nodehash.values():
+        if len(nodelist) > 1:
+            sumdeg = sum(map(lambda node: node.deg, nodelist))
+            nodelist[0].deg = sumdeg
+            del nodelist[1:]
+    return reduce(add, nodehash.values())
+     
+def condenseIgSeqNodes(igSeqNodes, p=None, probtol=None, seqlen=None):
+    igSeqNodes = condenseDegenerateIgSeqNodes(igSeqNodes)
     if seqlen != None:
-        igSeqNodes = filter(lambda node: node.score >= (seqlen-node.N)*node.mismatchScore,
+        igSeqNodes = filter(lambda node: node.score >= (seqlen-node.N+1)*node.mismatchScore,
                             igSeqNodes)
     if probtol != None and p != None:
         logprobtol = np.log(probtol)
@@ -122,9 +141,9 @@ def analyzeIgSeqNodes(igSeqNodes, p):
     stat = {}
     for node in igSeqNodes:
         if stat.has_key(node.maxScoreIdx):
-            stat[node.maxScoreIdx] += node.deg*np.exp(node.calculatelogprob(p))
+            stat[node.maxScoreIdx] += float(node.deg)*np.exp(node.calculatelogprob(p))
         else:
-            stat[node.maxScoreIdx] = node.deg*np.exp(node.calculatelogprob(p))
+            stat[node.maxScoreIdx] = float(node.deg)*np.exp(node.calculatelogprob(p))
     return stat
     
 def generateNextNodes(nodes):
@@ -136,7 +155,7 @@ def generateNextNodes(nodes):
 def simulateIgSeq(seqlen, vlen, p=None, probtol=None):
     nodes = [IgSeqNode(0, 0, vlen=vlen)]
     for N in range(seqlen):
-        nodes = generateNextNodes(nodes, p, probtol, seqlen)
+        nodes = generateNextNodes(nodes)
     nodes = condenseIgSeqNodes(nodes, p=p, probtol=probtol, seqlen=seqlen)
     return nodes
     
@@ -155,7 +174,8 @@ def simulateIgSeqPool(seqlen, vlen, p=None, probtol=None, numpools=1):
     
 if __name__ == '__main__':
     time1 = time.time()
-    nodes = simulateIgSeqPool(320, 300, p=0.05, probtol=1e-40, numpools=5)
+    #nodes = simulateIgSeqPool(320, 300, p=0.05, probtol=1e-40, numpools=5)
+    nodes = simulateIgSeq(15, 10)
     stat = analyzeIgSeqNodes(nodes, 0.05)
     time2 = time.time()
     print 'Time = ', (time2-time1), ' sec'
