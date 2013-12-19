@@ -9,6 +9,7 @@ import numpy as np
 from operator import and_, add
 import time
 from multiprocessing import Pool
+import csv
 
 prand = 0.25
 qrand = 1 - prand
@@ -138,15 +139,6 @@ def condenseIgSeqNodes(igSeqNodes, p=None, probtol=None, seqlen=None):
                             igSeqNodes)
     return igSeqNodes
     
-def analyzeIgSeqNodes(igSeqNodes, p):
-    stat = {}
-    for node in igSeqNodes:
-        if stat.has_key(node.maxScoreIdx):
-            stat[node.maxScoreIdx] += float(node.deg)*np.exp(node.calculatelogprob(p))
-        else:
-            stat[node.maxScoreIdx] = float(node.deg)*np.exp(node.calculatelogprob(p))
-    return stat
-    
 def generateNextNodes(nodes):
     nextnodes = []
     for node in nodes:
@@ -166,18 +158,39 @@ def simulateIgSeqPool(seqlen, vlen, p=None, probtol=None, numpools=1):
         nump = min(numpools, len(nodes))
         numPerPool = int(np.ceil(len(nodes)/float(nump)))
         nodepartition = [nodes[numPerPool*i:min(numPerPool*(i+1), len(nodes))] for i in range(nump)]
-        print N, len(nodes), nump, numPerPool, map(len, nodepartition)
+        #print N, len(nodes), nump, numPerPool, map(len, nodepartition)
         pool = Pool(nump)
         nodes_array = pool.map(generateNextNodes, nodepartition)
         nodes = condenseIgSeqNodes(reduce(add, nodes_array), p=p, 
                                    probtol=probtol, seqlen=seqlen)
     return nodes
     
-if __name__ == '__main__':
+def analyzeIgSeqNodes(igSeqNodes, p):
+    stat = {}
+    for node in igSeqNodes:
+        if stat.has_key(node.maxScoreIdx):
+            stat[node.maxScoreIdx] += float(node.deg)*np.exp(node.calculatelogprob(p))
+        else:
+            stat[node.maxScoreIdx] = float(node.deg)*np.exp(node.calculatelogprob(p))
+    return stat
+
+def printTableFile(igSeqNodes, p, outputfilename):
+    fout = open(outputfilename, 'wb')
+    writer = csv.writer(fout)
+    header = ['VEnd', 'VEndDiff', 'prob']
+    writer.writerow(header)
+
+    stat = analyzeIgSeqNodes(nodes, p)    
+    vlen = igSeqNodes[0].vlen
+    for maxIdx in sorted(stat.keys()):
+        writer.writerow([maxIdx, maxIdx-vlen, stat[maxIdx]])
+    fout.close()
+    
+def runOne(seqlen, vlen, p, probtol, numpools):
     time1 = time.time()
-    nodes = simulateIgSeqPool(320, 300, p=0.05, probtol=1e-40, numpools=5)
-    #nodes = simulateIgSeq(10, 9)
-    stat = analyzeIgSeqNodes(nodes, 0.05)
+    nodes = simulateIgSeqPool(seqlen, vlen, p=p, probtol=probtol, 
+                              numpools=numpools)
+    stat = analyzeIgSeqNodes(nodes, p)
     time2 = time.time()
     print 'Time = ', (time2-time1), ' sec'
     for maxIdx in sorted(stat.keys()):
@@ -187,4 +200,20 @@ if __name__ == '__main__':
     '''    
     for node in nodes:
         print node
-    '''
+    '''    
+    
+if __name__ == '__main__':
+    fsimsum = open('IgSeqVEndSim_Summary.csv', 'wb')
+    writer = csv.writer(fsimsum)
+    header = ['seqlen', 'vlen', 'prob', 'num.nodes', 'time']
+    writer.writerow(header)
+    seqlen = 318
+    vlen = 303
+    for prob in np.linspace(0.0, 0.95, num=20):
+        print 'prob = ', prob
+        time1 = time.time()
+        nodes = simulateIgSeq(seqlen, vlen, p=prob, probtol=1e-40)
+        time2 = time.time()
+        printTableFile(nodes, prob, 'IgSeqVEndSim_'+('%.2f' % prob)+'.csv')
+        writer.writerow([seqlen, vlen, prob, len(nodes), (time2-time1)])
+    fsimsum.close()
