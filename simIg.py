@@ -131,7 +131,7 @@ def condenseDegenerateIgSeqNodesHash(nodes):
 def condenseIgSeqNodes(igSeqNodes, p=None, probtol=None, seqlen=None):
     igSeqNodes = condenseDegenerateIgSeqNodesHash(igSeqNodes)
     if seqlen != None:
-        igSeqNodes = filter(lambda node: node.score >= (seqlen-node.N+1)*node.mismatchScore,
+        igSeqNodes = filter(lambda node: node.deg*node.score >= (seqlen-node.N+1)*node.mismatchScore,
                             igSeqNodes)
     if probtol != None and p != None:
         logprobtol = np.log(probtol)
@@ -186,6 +186,9 @@ def printTableFile(igSeqNodes, p, outputfilename):
         writer.writerow([maxIdx, maxIdx-vlen, stat[maxIdx]])
     fout.close()
     
+def favprobtol(p):
+    return 1e-40    
+    
 def runOne(seqlen, vlen, p, probtol, numpools):
     time1 = time.time()
     nodes = simulateIgSeqPool(seqlen, vlen, p=p, probtol=probtol, 
@@ -205,15 +208,24 @@ def runOne(seqlen, vlen, p, probtol, numpools):
 if __name__ == '__main__':
     fsimsum = open('IgSeqVEndSim_Summary.csv', 'wb')
     writer = csv.writer(fsimsum)
-    header = ['seqlen', 'vlen', 'prob', 'num.nodes', 'time']
+    header = ['seqlen', 'vlen', 'mutprob', 'num.nodes', 'sumdeg', 'probtol', 
+              'norm', 'time', 'numpools']
     writer.writerow(header)
+    npools = 5
     seqlen = 318
     vlen = 303
-    for prob in np.linspace(0.0, 0.95, num=20):
-        print 'prob = ', prob
+    for mutprob in np.linspace(0.0, 0.95, num=20):
+        print 'mutprob = ', mutprob
         time1 = time.time()
-        nodes = simulateIgSeq(seqlen, vlen, p=prob, probtol=1e-40)
+        optprobtol = favprobtol(mutprob)
+        nodes = simulateIgSeqPool(seqlen, vlen, p=mutprob, probtol=optprobtol, 
+                                  numpools=npools)
         time2 = time.time()
-        printTableFile(nodes, prob, 'IgSeqVEndSim_'+('%.2f' % prob)+'.csv')
-        writer.writerow([seqlen, vlen, prob, len(nodes), (time2-time1)])
+        stat = analyzeIgSeqNodes(nodes, mutprob)
+        sumdeg = sum(map(lambda node: node.deg, nodes))
+        norm = sum(stat.values())
+        printTableFile(nodes, mutprob,
+                       'IgSeqVEndSim_'+('%.2f' % mutprob)+'.csv')
+        writer.writerow([seqlen, vlen, mutprob, len(nodes), sumdeg, 
+                         optprobtol, norm, (time2-time1), npools])
     fsimsum.close()
