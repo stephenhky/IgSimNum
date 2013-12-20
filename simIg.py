@@ -6,6 +6,7 @@ Created on Thu Dec 12 13:05:50 2013
 """
 
 import numpy as np
+import math
 from operator import and_, add
 import time
 from multiprocessing import Pool
@@ -131,11 +132,11 @@ def condenseDegenerateIgSeqNodesHash(nodes):
 def condenseIgSeqNodes(igSeqNodes, p=None, probtol=None, seqlen=None):
     igSeqNodes = condenseDegenerateIgSeqNodesHash(igSeqNodes)
     if seqlen != None:
-        igSeqNodes = filter(lambda node: node.deg*node.score >= (seqlen-node.N+1)*node.mismatchScore,
+        igSeqNodes = filter(lambda node: node.score >= (seqlen-node.N+1)*node.mismatchScore,
                             igSeqNodes)
     if probtol != None and p != None:
         logprobtol = np.log(probtol)
-        igSeqNodes = filter(lambda node: node.calculatelogprob(p)>logprobtol,
+        igSeqNodes = filter(lambda node: math.log(node.deg)+node.calculatelogprob(p)>logprobtol,
                             igSeqNodes)
     return igSeqNodes
     
@@ -158,7 +159,7 @@ def simulateIgSeqPool(seqlen, vlen, p=None, probtol=None, numpools=1):
         nump = min(numpools, len(nodes))
         numPerPool = int(np.ceil(len(nodes)/float(nump)))
         nodepartition = [nodes[numPerPool*i:min(numPerPool*(i+1), len(nodes))] for i in range(nump)]
-        #print N, len(nodes), nump, numPerPool, map(len, nodepartition)
+        print N, len(nodes), nump, numPerPool, map(len, nodepartition)
         pool = Pool(nump)
         nodes_array = pool.map(generateNextNodes, nodepartition)
         nodes = condenseIgSeqNodes(reduce(add, nodes_array), p=p, 
@@ -187,7 +188,7 @@ def printTableFile(igSeqNodes, p, outputfilename):
     fout.close()
     
 def favprobtol(p):
-    return 1e-40    
+    return 1e-15    
     
 def runOne(seqlen, vlen, p, probtol, numpools):
     time1 = time.time()
