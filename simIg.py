@@ -11,6 +11,7 @@ from operator import and_, add
 import time
 from multiprocessing import Pool
 import csv
+import sys
 
 prand = 0.25
 qrand = 1 - prand
@@ -127,7 +128,7 @@ def condenseDegenerateIgSeqNodesHash(nodes):
             sumdeg = sum(map(lambda node: node.deg, nodelist))
             nodelist[0].deg = sumdeg
             del nodelist[1:]
-    return reduce(add, nodehash.values())
+    return reduce(add, nodehash.values()) if len(nodehash.values()) > 0 else []
      
 def condenseIgSeqNodes(igSeqNodes, p=None, probtol=None, seqlen=None):
     igSeqNodes = condenseDegenerateIgSeqNodesHash(igSeqNodes)
@@ -161,18 +162,19 @@ def generateNextCondensedNodes((nodes, p, probtol, seqlen)):
 def simulateIgSeqPool(seqlen, vlen, p=None, probtol=None, numpools=1):
     nodes = [IgSeqNode(0, 0, vlen=vlen)]
     for N in range(seqlen):
-        nump = min(numpools, len(nodes))
-        numPerPool = int(np.ceil(len(nodes)/float(nump)))
-        nodepartition = [nodes[numPerPool*i:min(numPerPool*(i+1), len(nodes))] for i in range(nump)]
-        nodepartition = filter(lambda array: len(array)>0, nodepartition)
-        nump = len(nodepartition)
-        print N, len(nodes), nump, numPerPool, map(len, nodepartition)
-        pool = Pool(nump)
-        nodes_array = pool.map(generateNextCondensedNodes, 
-                               map(lambda node: (node, p, probtol, seqlen),
-                                   nodepartition))
-        nodes = condenseIgSeqNodes(reduce(add, nodes_array), p=p, 
-                                   probtol=probtol, seqlen=seqlen)
+        if len(nodes) > 0:
+            nump = min(numpools, len(nodes))
+            numPerPool = int(np.ceil(len(nodes)/float(nump)))
+            nodepartition = [nodes[numPerPool*i:min(numPerPool*(i+1), len(nodes))] for i in range(nump)]
+            nodepartition = filter(lambda array: len(array)>0, nodepartition)
+            nump = len(nodepartition)
+            print N, len(nodes), nump, numPerPool, map(len, nodepartition)
+            pool = Pool(nump)
+            nodes_array = pool.map(generateNextCondensedNodes, 
+                                   map(lambda node: (node, p, probtol, seqlen),
+                                       nodepartition))
+            nodes = condenseIgSeqNodes(reduce(add, nodes_array), p=p, 
+                                       probtol=probtol, seqlen=seqlen)
     return nodes
     
 def analyzeIgSeqNodes(igSeqNodes, p):
@@ -191,7 +193,7 @@ def printTableFile(igSeqNodes, p, outputfilename):
     writer.writerow(header)
 
     stat = analyzeIgSeqNodes(igSeqNodes, p)    
-    vlen = igSeqNodes[0].vlen
+    vlen = igSeqNodes[0].vlen if len(igSeqNodes) > 0 else 0
     for maxIdx in sorted(stat.keys()):
         writer.writerow([maxIdx, maxIdx-vlen, stat[maxIdx]])
     fout.close()
@@ -211,8 +213,8 @@ def runOne(seqlen, vlen, p, probtol, numpools):
     print 'Norm = ', sum(stat.values())
     print '# nodes = ', len(nodes)
     
-def BatchSimulation():
-    fsimsum = open('IgSeqVEndSim_Summary.csv', 'wb')
+def BatchSimulation(mutProbs, summaryfilename='IgSeqVEndSim_Summary.csv'):
+    fsimsum = open(summaryfilename, 'wb')
     writer = csv.writer(fsimsum)
     header = ['seqlen', 'vlen', 'mutprob', 'num.nodes', 'sumdeg', 'probtol', 
               'norm', 'time', 'numpools']
@@ -220,7 +222,7 @@ def BatchSimulation():
     npools = 10
     seqlen = 318
     vlen = 303
-    for mutprob in np.linspace(0.0, 0.95, num=20):
+    for mutprob in mutProbs:
         print 'mutprob = ', mutprob
         time1 = time.time()
         optprobtol = favprobtol(mutprob)
@@ -237,6 +239,12 @@ def BatchSimulation():
     fsimsum.close()
 
 if __name__ == '__main__':
-    #runOne(318, 303, 0.30, 1e-10, 5)
-    BatchSimulation()
-    
+    argvs = sys.argv
+    if argvs[1]=='even':
+        BatchSimulation(np.linspace(0.00, 0.40, num=5),
+                        summaryfilename='IgSeqVEndSim_Summary_even.csv')
+    elif argvs[1]=='odd':
+        BatchSimulation(np.linspace(0.05, 0.45, num=5),
+                        summaryfilename='IgSeqVEndSim_Summary_odd.csv')
+    else:
+        BatchSimulation(np.linspace(0.00, 0.45, num=10))
